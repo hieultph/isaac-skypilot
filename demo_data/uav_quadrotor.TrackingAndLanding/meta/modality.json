@@ -1,0 +1,79 @@
+{
+  "state": {
+    "position": {
+      "start": 0,
+      "end": 3,
+      "description": "x, y, z position in meters"
+    },
+    "orientation": {
+      "start": 3,
+      "end": 7,
+      "description": "quaternion orientation (w, x, y, z)"
+    },
+    "velocity": {
+      "start": 7,
+      "end": 10,
+      "description": "linear velocity (vx, vy, vz) in m/s"
+    },
+    "angular_velocity": {
+      "start": 10,
+      "end": 13,
+      "description": "angular velocity (wx, wy, wz) in rad/s"
+    },
+    "battery_level": {
+      "start": 13,
+      "end": 14,
+      "description": "battery level (0-1)"
+    },
+    "target_position": {
+      "start": 14,
+      "end": 17,
+      "description": "target position (x, y, z) for tracking"
+    },
+    "target_distance": {
+      "start": 17,
+      "end": 18,
+      "description": "distance to target in meters"
+    }
+  },
+  "action": {
+    "thrust": {
+      "start": 0,
+      "end": 1,
+      "description": "thrust command (0-1)"
+    },
+    "roll": {
+      "start": 1,
+      "end": 2,
+      "description": "roll command (-1 to 1)"
+    },
+    "pitch": {
+      "start": 2,
+      "end": 3,
+      "description": "pitch command (-1 to 1)"
+    },
+    "yaw": {
+      "start": 3,
+      "end": 4,
+      "description": "yaw command (-1 to 1)"
+    }
+  },
+  "video": {
+    "front_camera": {
+      "original_key": "observation.images.front_camera"
+    },
+    "bottom_camera": {
+      "original_key": "observation.images.bottom_camera"
+    },
+    "downward_camera": {
+      "original_key": "observation.images.downward_camera"
+    }
+  },
+  "annotation": {
+    "human.action.task_description": {},
+    "human.validity": {},
+    "human.coarse_action": {
+      "original_key": "annotation.human.action.task_description"
+    }
+  }
+}

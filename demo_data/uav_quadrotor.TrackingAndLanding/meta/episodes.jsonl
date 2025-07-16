@@ -1,0 +1,8 @@
+{"episode_index": 0, "tasks": ["takeoff and hover at 5 meters altitude", "valid"], "length": 450}
+{"episode_index": 1, "tasks": ["track moving red target from 10 meters distance", "valid"], "length": 520}
+{"episode_index": 2, "tasks": ["track moving blue target from 15 meters distance", "valid"], "length": 480}
+{"episode_index": 3, "tasks": ["track stationary green target and maintain position", "valid"], "length": 400}
+{"episode_index": 4, "tasks": ["land on designated landing pad", "valid"], "length": 350}
+{"episode_index": 5, "tasks": ["precision land on moving platform", "valid"], "length": 380}
+{"episode_index": 6, "tasks": ["follow waypoint trajectory and land", "valid"], "length": 420}
+{"episode_index": 7, "tasks": ["takeoff and hover at 5 meters altitude", "track moving red target from 10 meters distance", "land on designated landing pad", "valid"], "length": 200}

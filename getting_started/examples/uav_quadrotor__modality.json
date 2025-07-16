@@ -1,0 +1,64 @@
+{
+    "state": {
+        "position": {
+            "start": 0,
+            "end": 3,
+            "description": "x, y, z position"
+        },
+        "orientation": {
+            "start": 3,
+            "end": 7,
+            "description": "quaternion orientation (w, x, y, z)"
+        },
+        "velocity": {
+            "start": 7,
+            "end": 10,
+            "description": "linear velocity (vx, vy, vz)"
+        },
+        "angular_velocity": {
+            "start": 10,
+            "end": 13,
+            "description": "angular velocity (wx, wy, wz)"
+        },
+        "battery_level": {
+            "start": 13,
+            "end": 14,
+            "description": "battery level (0-1)"
+        }
+    },
+    "action": {
+        "thrust": {
+            "start": 0,
+            "end": 1,
+            "description": "thrust command (0-1)"
+        },
+        "roll": {
+            "start": 1,
+            "end": 2,
+            "description": "roll command (-1 to 1)"
+        },
+        "pitch": {
+            "start": 2,
+            "end": 3,
+            "description": "pitch command (-1 to 1)"
+        },
+        "yaw": {
+            "start": 3,
+            "end": 4,
+            "description": "yaw command (-1 to 1)"
+        }
+    },
+    "video": {
+        "front_camera": {
+            "original_key": "observation.images.front_camera"
+        },
+        "bottom_camera": {
+            "original_key": "observation.images.bottom_camera"
+        }
+    },
+    "annotation": {
+        "human.task_description": {
+            "original_key": "task_description"
+        }
+    }
+}
