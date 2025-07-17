@@ -19,7 +19,7 @@ def train_uav_model():
     
     # Configuration
     MODEL_PATH = "nvidia/GR00T-N1.5-3B"  # Base pretrained model
-    DATASET_PATH = "/path/to/your/uav/dataset"  # Your UAV dataset
+    DATASET_PATH = "demo_data/uav_quadrotor.TrackingAndLanding"  # Your UAV dataset
     EMBODIMENT_TAG = "uav_quadrotor"
     OUTPUT_DIR = "./uav_gr00t_checkpoints"
     
