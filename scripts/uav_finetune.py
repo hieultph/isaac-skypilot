@@ -26,11 +26,12 @@ import os
 from pathlib import Path
 
 import torch
+from transformers import TrainingArguments
 from gr00t.data.dataset import LeRobotSingleDataset
 from gr00t.data.embodiment_tags import EmbodimentTag
 from gr00t.experiment.data_config import UAVQuadcopterDataConfig
-from gr00t.experiment.runner import ExperimentRunner
-from gr00t.model.policy import Gr00tPolicy
+from gr00t.experiment.runner import TrainRunner
+from gr00t.model.gr00t_n1 import GR00T_N1_5
 
 
 def parse_args():
@@ -152,67 +153,71 @@ def main():
     
     # Load pretrained model
     print("\\nLoading pretrained GR00T model...")
-    policy = Gr00tPolicy(
-        model_path=args.model_path,
+    model = GR00T_N1_5.from_pretrained(
+        args.model_path,
         modality_config=modality_configs,
-        modality_transform=transforms,
         embodiment_tag=EmbodimentTag.UAV_QUADCOPTER,
-        device=args.device
+        torch_dtype=torch.float16,
+        device_map="auto"
     )
     
     # Configure what to freeze for UAV adaptation
     if args.freeze_backbone:
         print("Freezing visual backbone...")
-        for param in policy.model.backbone.parameters():
+        for param in model.backbone.parameters():
             param.requires_grad = False
             
     if args.freeze_language_model:
         print("Freezing language model...")
-        for param in policy.model.language_model.parameters():
+        for param in model.language_model.parameters():
             param.requires_grad = False
     
     if args.only_train_action_head:
         print("Only training UAV action head...")
         # Freeze everything except UAV action head
-        for name, param in policy.model.named_parameters():
+        for name, param in model.named_parameters():
             if "action_head" not in name or "uav_quadcopter" not in name:
                 param.requires_grad = False
     
     # Count trainable parameters
-    trainable_params = sum(p.numel() for p in policy.model.parameters() if p.requires_grad)
-    total_params = sum(p.numel() for p in policy.model.parameters())
+    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    total_params = sum(p.numel() for p in model.parameters())
     print(f"\\nTrainable parameters: {trainable_params:,} / {total_params:,} ({100*trainable_params/total_params:.1f}%)")
     
-    # Setup training configuration
-    training_config = {
-        "batch_size": args.batch_size,
-        "learning_rate": args.learning_rate,
-        "num_epochs": args.num_epochs,
-        "output_dir": args.output_dir,
-        "device": args.device,
-        "embodiment_tag": args.embodiment_tag,
-        
-        # UAV-specific training settings
-        "action_horizon": 16,  # 16-step action prediction
-        "state_dim": 13,       # 13D UAV state space
-        "action_dim": 9,       # 9D UAV action space
-        
-        # Logging and checkpointing
-        "log_every": 100,
-        "save_every": 1000,
-        "eval_every": 500,
-    }
+    # Setup training arguments (compatible with HuggingFace TrainingArguments)
+    training_args = TrainingArguments(
+        output_dir=args.output_dir,
+        per_device_train_batch_size=args.batch_size,
+        learning_rate=args.learning_rate,
+        num_train_epochs=args.num_epochs,
+        logging_steps=100,
+        save_steps=1000,
+        save_total_limit=3,
+        remove_unused_columns=False,
+        dataloader_num_workers=4,
+        warmup_ratio=0.05,
+        lr_scheduler_type="cosine",
+        optim="adamw_torch",
+        report_to=["tensorboard"],
+        seed=42,
+        bf16=torch.cuda.is_bf16_supported(),
+        fp16=not torch.cuda.is_bf16_supported(),
+    )
     
     print(f"\\nTraining configuration:")
-    for key, value in training_config.items():
-        print(f"  {key}: {value}")
+    print(f"  Batch size: {args.batch_size}")
+    print(f"  Learning rate: {args.learning_rate}")
+    print(f"  Epochs: {args.num_epochs}")
+    print(f"  Device: {args.device}")
+    print(f"  Mixed precision: {'bf16' if torch.cuda.is_bf16_supported() else 'fp16'}")
     
     # Initialize training runner
     print("\\nInitializing training...")
-    runner = ExperimentRunner(
-        model=policy.model,
-        dataset=dataset,
-        config=training_config
+    runner = TrainRunner(
+        model=model,
+        training_args=training_args,
+        train_dataset=dataset,
+        resume_from_checkpoint=False
     )
     
     # Start training
@@ -222,9 +227,9 @@ def main():
     
     print(f"\\nTraining completed! Model saved to: {args.output_dir}")
     print("\\nTo use the trained model:")
-    print(f"  from gr00t.model.policy import Gr00tPolicy")
-    print(f"  uav_policy = Gr00tPolicy(model_path='{args.output_dir}', ...)")
-    print(f"  action = uav_policy.get_action(observation)")
+    print(f"  from gr00t.model.gr00t_n1 import GR00T_N1_5")
+    print(f"  uav_model = GR00T_N1_5.from_pretrained('{args.output_dir}')")
+    print(f"  # Use model for UAV inference")
 
 
 if __name__ == "__main__":

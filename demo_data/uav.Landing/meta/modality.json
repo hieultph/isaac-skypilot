@@ -1,0 +1,96 @@
+{
+  "state": {
+    "position": {
+      "start": 0,
+      "end": 3,
+      "dtype": "float32",
+      "range": [
+        -100.0,
+        100.0
+      ]
+    },
+    "orientation": {
+      "start": 3,
+      "end": 6,
+      "rotation_type": "euler_angles_rpy",
+      "dtype": "float32",
+      "range": [
+        -3.14159,
+        3.14159
+      ]
+    },
+    "velocity": {
+      "start": 6,
+      "end": 9,
+      "dtype": "float32",
+      "range": [
+        -50.0,
+        50.0
+      ]
+    },
+    "battery": {
+      "start": 9,
+      "end": 10,
+      "dtype": "float32",
+      "range": [
+        0.0,
+        100.0
+      ]
+    },
+    "gps": {
+      "start": 10,
+      "end": 13,
+      "dtype": "float32",
+      "range": [
+        -180.0,
+        180.0
+      ]
+    }
+  },
+  "action": {
+    "flight_control": {
+      "start": 0,
+      "end": 4,
+      "absolute": true,
+      "dtype": "float32",
+      "range": [
+        -1.0,
+        1.0
+      ]
+    },
+    "velocity_command": {
+      "start": 4,
+      "end": 7,
+      "absolute": false,
+      "dtype": "float32",
+      "range": [
+        -10.0,
+        10.0
+      ]
+    },
+    "gimbal": {
+      "start": 7,
+      "end": 9,
+      "absolute": true,
+      "rotation_type": "euler_angles_rpy",
+      "dtype": "float32",
+      "range": [
+        -1.57,
+        1.57
+      ]
+    }
+  },
+  "video": {
+    "front_camera": {
+      "original_key": "observation.images.front_camera"
+    },
+    "gimbal_camera": {
+      "original_key": "observation.images.gimbal_camera"
+    }
+  },
+  "annotation": {
+    "human.task_description": {
+      "original_key": "task_description"
+    }
+  }
+}

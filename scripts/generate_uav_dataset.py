@@ -284,11 +284,20 @@ class UAVLandingDataGenerator:
         chunk_dir = self.output_dir / "data" / f"chunk-{episode_idx:03d}"
         chunk_dir.mkdir(exist_ok=True)
         
-        # Create observation and action arrays
+        # Create observation and action arrays with all required LeRobot fields
+        episode_length = episode_data['length']
+        
+        # Prepare all data arrays
         observations = []
         actions = []
+        timestamps = []
+        task_indices = []
+        episode_indices = []
+        indices = []
+        rewards = []
+        dones = []
         
-        for i in range(episode_data['length']):
+        for i in range(episode_length):
             # Observation state (13D: position(3) + orientation(3) + velocity(3) + battery(1) + gps(3))
             obs_state = np.concatenate([
                 episode_data['positions'][i],      # 3D
@@ -306,18 +315,36 @@ class UAVLandingDataGenerator:
                 episode_data['gimbal'][i],            # 2D
             ])
             actions.append(action)
+            
+            # Standard LeRobot metadata fields
+            timestamps.append(i / self.fps)  # Time in seconds
+            task_indices.append(0)  # All episodes same task for now
+            episode_indices.append(episode_idx)
+            indices.append(i)
+            
+            # Reward: higher for successful landing (lower altitude + stable)
+            altitude = episode_data['positions'][i][2]
+            velocity_magnitude = np.linalg.norm(episode_data['velocities'][i])
+            reward = max(0, (100 - altitude) / 100.0 - velocity_magnitude * 0.1)
+            rewards.append(reward)
+            
+            # Done: True only on last frame
+            dones.append(i == episode_length - 1)
         
-        # Save observation states
-        obs_df = pd.DataFrame({
-            'observation.state': [obs.tolist() for obs in observations]
+        # Create comprehensive episode dataframe
+        episode_df = pd.DataFrame({
+            'observation.state': [obs.tolist() for obs in observations],
+            'action': [act.tolist() for act in actions], 
+            'timestamp': timestamps,
+            'task_index': task_indices,
+            'episode_index': episode_indices,
+            'index': indices,
+            'next.reward': rewards,
+            'next.done': dones
         })
-        obs_df.to_parquet(chunk_dir / "observation.state.parquet")
         
-        # Save actions
-        action_df = pd.DataFrame({
-            'action': [act.tolist() for act in actions]
-        })
-        action_df.to_parquet(chunk_dir / "action.parquet")
+        # Save complete episode data
+        episode_df.to_parquet(chunk_dir / f"episode_{episode_idx:06d}.parquet")
         
         # Save videos
         video_dir = self.output_dir / "videos" / f"chunk-{episode_idx:03d}"
@@ -354,12 +381,99 @@ class UAVLandingDataGenerator:
     def create_metadata_files(self, num_episodes: int):
         """Create LeRobot metadata files."""
         
-        # info.json
+        # Calculate total frames
+        total_frames = num_episodes * self.episode_length
+        
+        # info.json with complete features schema
         info = {
-            "codebase_version": "1.0.0",
-            "data_name": "uav_landing_synthetic",
-            "fps": self.fps,
-            "video": True,
+            "codebase_version": "v2.0",
+            "robot_type": "UAVQuadcopter",
+            "total_episodes": num_episodes,
+            "total_frames": total_frames,
+            "total_tasks": len(self.scenarios),
+            "total_videos": 2,  # front_camera and gimbal_camera
+            "total_chunks": 0,
+            "chunks_size": 1000,
+            "fps": float(self.fps),
+            "splits": {
+                "train": "0:100"
+            },
+            "data_path": "data/chunk-{episode_chunk:03d}/episode_{episode_index:06d}.parquet",
+            "video_path": "videos/chunk-{episode_chunk:03d}/{video_key}/episode_{episode_index:06d}.mp4",
+            "features": {
+                # Video features
+                "observation.images.front_camera": {
+                    "dtype": "video",
+                    "shape": list(self.image_size),
+                    "names": ["height", "width", "channel"],
+                    "video_info": {
+                        "video.fps": float(self.fps),
+                        "video.codec": "h264", 
+                        "video.pix_fmt": "yuv420p",
+                        "video.is_depth_map": False,
+                        "has_audio": False
+                    }
+                },
+                "observation.images.gimbal_camera": {
+                    "dtype": "video",
+                    "shape": list(self.image_size),
+                    "names": ["height", "width", "channel"],
+                    "video_info": {
+                        "video.fps": float(self.fps),
+                        "video.codec": "h264",
+                        "video.pix_fmt": "yuv420p", 
+                        "video.is_depth_map": False,
+                        "has_audio": False
+                    }
+                },
+                # State features (13D)
+                "observation.state": {
+                    "dtype": "float64",
+                    "shape": [13],
+                    "names": [
+                        "position_x", "position_y", "position_z",           # 0-2
+                        "orientation_roll", "orientation_pitch", "orientation_yaw",  # 3-5
+                        "velocity_x", "velocity_y", "velocity_z",           # 6-8
+                        "battery_level",                                    # 9
+                        "gps_lat", "gps_lon", "gps_alt"                    # 10-12
+                    ]
+                },
+                # Action features (9D)
+                "action": {
+                    "dtype": "float64",
+                    "shape": [9],
+                    "names": [
+                        "flight_throttle", "flight_roll", "flight_pitch", "flight_yaw",  # 0-3
+                        "velocity_cmd_x", "velocity_cmd_y", "velocity_cmd_z",            # 4-6
+                        "gimbal_pitch", "gimbal_yaw"                                     # 7-8
+                    ]
+                },
+                # Standard LeRobot fields
+                "timestamp": {
+                    "dtype": "float64",
+                    "shape": [1]
+                },
+                "task_index": {
+                    "dtype": "int64",
+                    "shape": [1]
+                },
+                "episode_index": {
+                    "dtype": "int64", 
+                    "shape": [1]
+                },
+                "index": {
+                    "dtype": "int64",
+                    "shape": [1]
+                },
+                "next.reward": {
+                    "dtype": "float64",
+                    "shape": [1]
+                },
+                "next.done": {
+                    "dtype": "bool",
+                    "shape": [1]
+                }
+            },
             "encoding": {
                 "video": {
                     "pix_fmt": "yuv420p",
@@ -371,21 +485,21 @@ class UAVLandingDataGenerator:
         with open(self.output_dir / "meta" / "info.json", 'w') as f:
             json.dump(info, f, indent=2)
         
-        # Copy modality.json (already created)
+        # Copy modality.json with correct rotation type
         modality_path = self.output_dir / "meta" / "modality.json"
         if not modality_path.exists():
             modality = {
                 "state": {
-                    "position": {"start": 0, "end": 3},
-                    "orientation": {"start": 3, "end": 6, "rotation_type": "euler_angles"},
-                    "velocity": {"start": 6, "end": 9},
-                    "battery": {"start": 9, "end": 10},
-                    "gps": {"start": 10, "end": 13}
+                    "position": {"start": 0, "end": 3, "dtype": "float32", "range": [-100.0, 100.0]},
+                    "orientation": {"start": 3, "end": 6, "rotation_type": "euler_angles_rpy", "dtype": "float32", "range": [-3.14159, 3.14159]},
+                    "velocity": {"start": 6, "end": 9, "dtype": "float32", "range": [-50.0, 50.0]},
+                    "battery": {"start": 9, "end": 10, "dtype": "float32", "range": [0.0, 100.0]},
+                    "gps": {"start": 10, "end": 13, "dtype": "float32", "range": [-180.0, 180.0]}
                 },
                 "action": {
-                    "flight_control": {"start": 0, "end": 4},
-                    "velocity_command": {"start": 4, "end": 7},
-                    "gimbal": {"start": 7, "end": 9}
+                    "flight_control": {"start": 0, "end": 4, "absolute": True, "dtype": "float32", "range": [-1.0, 1.0]},
+                    "velocity_command": {"start": 4, "end": 7, "absolute": False, "dtype": "float32", "range": [-10.0, 10.0]},
+                    "gimbal": {"start": 7, "end": 9, "absolute": True, "rotation_type": "euler_angles_rpy", "dtype": "float32", "range": [-1.57, 1.57]}
                 },
                 "video": {
                     "front_camera": {"original_key": "observation.images.front_camera"},
@@ -405,6 +519,77 @@ class UAVLandingDataGenerator:
             for i in range(num_episodes):
                 task = {"task_index": i, "task_description": np.random.choice(self.scenarios)}
                 f.write(json.dumps(task) + '\n')
+        
+        # episodes.jsonl (episode metadata)
+        episodes_path = self.output_dir / "meta" / "episodes.jsonl"
+        with open(episodes_path, 'w') as f:
+            for i in range(num_episodes):
+                episode_meta = {
+                    "episode_index": i,
+                    "tasks": [np.random.choice(self.scenarios), "valid"],
+                    "length": self.episode_length
+                }
+                f.write(json.dumps(episode_meta) + '\n')
+        
+        # stats.json (dataset statistics)
+        stats = {
+            "observation.state": {
+                "mean": [
+                    0.0, 0.0, 50.0,        # position: x, y, z (start at 50m altitude)
+                    0.0, 0.0, 0.0,         # orientation: roll, pitch, yaw
+                    0.0, 0.0, -2.0,        # velocity: vx, vy, vz (descending)
+                    75.0,                  # battery: 75% average
+                    37.7749, -122.4194, 50.0  # gps: lat, lon, alt
+                ],
+                "std": [
+                    30.0, 30.0, 25.0,     # position variation
+                    0.3, 0.3, 0.3,        # orientation variation (radians)
+                    5.0, 5.0, 3.0,        # velocity variation
+                    15.0,                  # battery variation
+                    0.01, 0.01, 25.0      # gps variation
+                ],
+                "min": [
+                    -100.0, -100.0, 0.0,  # position limits
+                    -3.14159, -3.14159, -3.14159,  # orientation limits
+                    -50.0, -50.0, -50.0,  # velocity limits
+                    0.0,                   # battery minimum
+                    -90.0, -180.0, 0.0    # gps limits
+                ],
+                "max": [
+                    100.0, 100.0, 100.0,  # position limits
+                    3.14159, 3.14159, 3.14159,  # orientation limits
+                    50.0, 50.0, 50.0,     # velocity limits
+                    100.0,                 # battery maximum
+                    90.0, 180.0, 100.0    # gps limits
+                ]
+            },
+            "action": {
+                "mean": [
+                    0.5, 0.0, 0.0, 0.0,   # flight_control: throttle up, level
+                    0.0, 0.0, -1.0,        # velocity_command: descending
+                    -0.1, 0.0              # gimbal: slightly down
+                ],
+                "std": [
+                    0.2, 0.3, 0.3, 0.3,   # flight_control variation
+                    2.0, 2.0, 2.0,        # velocity_command variation
+                    0.3, 0.2               # gimbal variation
+                ],
+                "min": [
+                    -1.0, -1.0, -1.0, -1.0,  # flight_control limits
+                    -10.0, -10.0, -10.0,     # velocity_command limits
+                    -1.57, -1.57             # gimbal limits (radians)
+                ],
+                "max": [
+                    1.0, 1.0, 1.0, 1.0,     # flight_control limits
+                    10.0, 10.0, 10.0,       # velocity_command limits
+                    1.57, 1.57               # gimbal limits (radians)
+                ]
+            }
+        }
+        
+        stats_path = self.output_dir / "meta" / "stats.json"
+        with open(stats_path, 'w') as f:
+            json.dump(stats, f, indent=2)
         
         print("✓ Metadata files created")
     
@@ -437,7 +622,7 @@ def main():
     parser.add_argument(
         "--num_episodes", 
         type=int, 
-        default=50,
+        default=5,
         help="Number of episodes to generate"
     )
     parser.add_argument(
