@@ -1,8 +1,8 @@
 {
   "codebase_version": "v2.0",
   "robot_type": "UAVQuadcopter",
-  "total_episodes": 5,
-  "total_frames": 1000,
+  "total_episodes": 1,
+  "total_frames": 200,
   "total_tasks": 8,
   "total_videos": 2,
   "total_chunks": 0,
@@ -99,6 +99,12 @@
       ]
     },
     "task_index": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ]
+    },
+    "annotation.human.task_description": {
       "dtype": "int64",
       "shape": [
         1

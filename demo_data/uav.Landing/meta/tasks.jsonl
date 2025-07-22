@@ -1,5 +1,9 @@
-{"task_index": 0, "task": "Land safely in the marked zone"}
-{"task_index": 1, "task": "Land on the moving platform"}
-{"task_index": 2, "task": "Land on the designated platform"}
-{"task_index": 3, "task": "Land on the designated platform"}
-{"task_index": 4, "task": "Approach and land on the target area"}
+{"task_index": 0, "task": "Land on the designated platform"}
+{"task_index": 1, "task": "Perform precision landing on the helipad"}
+{"task_index": 2, "task": "Land safely in the marked zone"}
+{"task_index": 3, "task": "Execute emergency landing procedure"}
+{"task_index": 4, "task": "Land on the moving platform"}
+{"task_index": 5, "task": "Navigate to landing zone and land"}
+{"task_index": 6, "task": "Approach and land on the target area"}
+{"task_index": 7, "task": "Complete autonomous landing sequence"}
+{"task_index": 8, "task": "valid"}

@@ -90,7 +90,7 @@
   },
   "annotation": {
     "human.task_description": {
-      "original_key": "task_description"
+      "original_key": "annotation.human.task_description"
     }
   }
 }

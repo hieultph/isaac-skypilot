@@ -296,6 +296,10 @@ class UAVLandingDataGenerator:
         indices = []
         rewards = []
         dones = []
+        task_descriptions = []
+        
+        # Choose a random task for this episode
+        episode_task_idx = episode_idx % len(self.scenarios)
         
         for i in range(episode_length):
             # Observation state (13D: position(3) + orientation(3) + velocity(3) + battery(1) + gps(3))
@@ -318,7 +322,8 @@ class UAVLandingDataGenerator:
             
             # Standard LeRobot metadata fields
             timestamps.append(i / self.fps)  # Time in seconds
-            task_indices.append(0)  # All episodes same task for now
+            task_indices.append(episode_task_idx)  # Task index for this episode
+            task_descriptions.append(episode_task_idx)  # Task description index
             episode_indices.append(episode_idx)
             indices.append(i)
             
@@ -337,6 +342,7 @@ class UAVLandingDataGenerator:
             'action': [act.tolist() for act in actions], 
             'timestamp': timestamps,
             'task_index': task_indices,
+            'annotation.human.task_description': task_descriptions,
             'episode_index': episode_indices,
             'index': indices,
             'next.reward': rewards,
@@ -457,6 +463,10 @@ class UAVLandingDataGenerator:
                     "dtype": "int64",
                     "shape": [1]
                 },
+                "annotation.human.task_description": {
+                    "dtype": "int64",
+                    "shape": [1]
+                },
                 "episode_index": {
                     "dtype": "int64", 
                     "shape": [1]
@@ -506,7 +516,7 @@ class UAVLandingDataGenerator:
                     "gimbal_camera": {"original_key": "observation.images.gimbal_camera"}
                 },
                 "annotation": {
-                    "human.task_description": {"original_key": "task_description"}
+                    "human.task_description": {"original_key": "annotation.human.task_description"}
                 }
             }
             
@@ -516,9 +526,12 @@ class UAVLandingDataGenerator:
         # tasks.jsonl (task descriptions)
         tasks_path = self.output_dir / "meta" / "tasks.jsonl"
         with open(tasks_path, 'w') as f:
-            for i in range(num_episodes):
-                task = {"task_index": i, "task_description": np.random.choice(self.scenarios)}
+            for i, scenario in enumerate(self.scenarios):
+                task = {"task_index": i, "task": scenario}
                 f.write(json.dumps(task) + '\n')
+            # Add a "valid" task as seen in the reference dataset
+            task = {"task_index": len(self.scenarios), "task": "valid"}
+            f.write(json.dumps(task) + '\n')
         
         # episodes.jsonl (episode metadata)
         episodes_path = self.output_dir / "meta" / "episodes.jsonl"
@@ -622,7 +635,7 @@ def main():
     parser.add_argument(
         "--num_episodes", 
         type=int, 
-        default=5,
+        default=1,
         help="Number of episodes to generate"
     )
     parser.add_argument(

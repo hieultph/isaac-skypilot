@@ -915,7 +915,7 @@ class UAVQuadcopterDataConfig(BaseDataConfig):
     ]
     language_keys = ["annotation.human.task_description"]
     observation_indices = [0]
-    action_indices = list(range(16))
+    action_indices = list(range(9))  # UAV has 9-dimensional action space
 
     def modality_config(self) -> dict[str, ModalityConfig]:
         video_modality = ModalityConfig(
@@ -991,7 +991,7 @@ class UAVQuadcopterDataConfig(BaseDataConfig):
                     "state.gps": "min_max",           # GPS normalization
                 },
                 target_rotations={
-                    "state.orientation": "euler_angles",  # Use euler angles for orientation
+                    "state.orientation": "euler_angles_rpy",  # Use euler angles for orientation
                 },
             ),
             
