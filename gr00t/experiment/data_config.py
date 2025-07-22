@@ -879,6 +879,151 @@ class AgibotGenie1DataConfig:
 
 ###########################################################################################
 
+class UAVQuadcopterDataConfig(BaseDataConfig):
+    """
+    Data configuration for UAV Quadcopter embodiment.
+    
+    State Space:
+    - position: x, y, z (3 dims)
+    - orientation: roll, pitch, yaw (3 dims)  
+    - velocity: vx, vy, vz (3 dims)
+    - battery: battery level (1 dim)
+    - gps: lat, lon, alt (3 dims)
+    Total: 13 dimensional state
+    
+    Action Space:
+    - flight_control: throttle, roll, pitch, yaw (4 dims)
+    - velocity_command: vx, vy, vz (3 dims) 
+    - gimbal: gimbal_pitch, gimbal_yaw (2 dims)
+    Total: 9 dimensional action
+    """
+    video_keys = [
+        "video.front_camera",
+        "video.gimbal_camera",
+    ]
+    state_keys = [
+        "state.position",        # x, y, z (3)
+        "state.orientation",     # roll, pitch, yaw (3)
+        "state.velocity",        # vx, vy, vz (3)
+        "state.battery",         # battery level (1)
+        "state.gps",            # lat, lon, alt (3)
+    ]
+    action_keys = [
+        "action.flight_control",  # throttle, roll, pitch, yaw (4)
+        "action.velocity_command", # vx, vy, vz (3)
+        "action.gimbal",         # gimbal_pitch, gimbal_yaw (2)
+    ]
+    language_keys = ["annotation.human.task_description"]
+    observation_indices = [0]
+    action_indices = list(range(16))
+
+    def modality_config(self) -> dict[str, ModalityConfig]:
+        video_modality = ModalityConfig(
+            delta_indices=self.observation_indices,
+            modality_keys=self.video_keys,
+        )
+
+        state_modality = ModalityConfig(
+            delta_indices=self.observation_indices,
+            modality_keys=self.state_keys,
+        )
+
+        action_modality = ModalityConfig(
+            delta_indices=self.action_indices,
+            modality_keys=self.action_keys,
+        )
+
+        language_modality = ModalityConfig(
+            delta_indices=self.observation_indices,
+            modality_keys=self.language_keys,
+        )
+
+        modality_configs = {
+            "video": video_modality,
+            "state": state_modality,
+            "action": action_modality,
+            "language": language_modality,
+        }
+
+        return modality_configs
+
+    def transform(self):
+        from gr00t.data.transform import (
+            VideoResize,
+            VideoToTensor,
+            VideoColorJitter,
+            VideoToNumpy,
+        )
+        from gr00t.model.transforms import GR00TTransform
+
+        video_modality = self.modality_config()["video"]
+        state_modality = self.modality_config()["state"]
+        action_modality = self.modality_config()["action"]
+
+        transforms = [
+            # video transforms
+            VideoToTensor(apply_to=video_modality.modality_keys),
+            VideoResize(
+                apply_to=video_modality.modality_keys,
+                height=224,
+                width=224,
+                antialias=True,
+            ),
+            VideoColorJitter(
+                apply_to=video_modality.modality_keys,
+                brightness=0.3,
+                contrast=0.4,
+                saturation=0.5,
+                hue=0.08,
+                backend="torchvision",
+            ),
+            VideoToNumpy(apply_to=video_modality.modality_keys),
+            
+            # state transforms
+            StateActionToTensor(apply_to=state_modality.modality_keys),
+            StateActionTransform(
+                apply_to=state_modality.modality_keys,
+                normalization_modes={
+                    "state.position": "min_max",       # position normalization
+                    "state.orientation": "min_max",    # orientation normalization  
+                    "state.velocity": "min_max",       # velocity normalization
+                    "state.battery": "min_max",        # battery normalization
+                    "state.gps": "min_max",           # GPS normalization
+                },
+                target_rotations={
+                    "state.orientation": "euler_angles",  # Use euler angles for orientation
+                },
+            ),
+            
+            # action transforms
+            StateActionToTensor(apply_to=action_modality.modality_keys),
+            StateActionTransform(
+                apply_to=action_modality.modality_keys,
+                normalization_modes={
+                    "action.flight_control": "min_max",   # flight control normalization
+                    "action.velocity_command": "min_max", # velocity command normalization
+                    "action.gimbal": "min_max",           # gimbal normalization
+                },
+            ),
+            
+            # concat transforms
+            ConcatTransform(
+                video_concat_order=self.video_keys,
+                state_concat_order=self.state_keys,
+                action_concat_order=self.action_keys,
+            ),
+            GR00TTransform(
+                state_horizon=len(self.observation_indices),
+                action_horizon=len(self.action_indices),
+                max_state_dim=64,
+                max_action_dim=32,
+            ),
+        ]
+
+        return ComposedModalityTransform(transforms=transforms)
+
+###########################################################################################
+
 DATA_CONFIG_MAP = {
     "fourier_gr1_arms_waist": FourierGr1ArmsWaistDataConfig(),
     "fourier_gr1_arms_only": FourierGr1ArmsOnlyDataConfig(),
@@ -892,4 +1037,5 @@ DATA_CONFIG_MAP = {
     "unitree_g1_full_body": UnitreeG1FullBodyDataConfig(),
     "oxe_droid": OxeDroidDataConfig(),
     "agibot_genie1": AgibotGenie1DataConfig(),
+    "uav_quadcopter": UAVQuadcopterDataConfig(),
 }
