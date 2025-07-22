@@ -63,7 +63,7 @@ class GR00T_N1_5(PreTrainedModel):
     """
     we expect the backbone output to have a key 'backbone_features' with shape (batch_size, n, hidden_size)
     here n is variable and can be e.g. time, 1 or user specified
-    we expect the action head output to have a key 'action_pred' with shape (batch_size, time, action_dim) during inference time
+    we expect the action head output to have  a key 'action_pred' with shape (batch_size, time, action_dim) during inference time
     we expect these to have type BatchFeature, and they can of course have many other user specified keys too
     """
 
