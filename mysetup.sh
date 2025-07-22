@@ -3,9 +3,6 @@
 # Exit immediately on error
 set -e
 
-# Clone the repo
-git clone https://github.com/hieultph/isaac-skypilot.git
-
 # Download and install Miniconda
 wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
 bash Miniconda3-latest-Linux-x86_64.sh
