@@ -35,20 +35,24 @@ class UAVControlInterface:
         In a real implementation, this would interface with your UAV's sensors.
         """
         # Mock observation - replace with actual UAV sensor data
+        # Note: Video data needs to be in [T, H, W, C] format where T=1 for single frame
+        front_camera_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        gimbal_camera_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        
         observation = {
-            # Camera feeds (224x224 RGB images)
-            "video.front_camera": np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8),
-            "video.gimbal_camera": np.random.randint(0, 255, (224, 224, 3), dtype=np.uint8),
+            # Camera feeds - add time dimension [T=1, H, W, C] for video format
+            "video.front_camera": np.expand_dims(front_camera_frame, axis=0),  # [1, 480, 640, 3]
+            "video.gimbal_camera": np.expand_dims(gimbal_camera_frame, axis=0),  # [1, 480, 640, 3]
             
-            # UAV state (13D)
-            "state.position": np.array([10.5, 5.2, 15.0], dtype=np.float32),  # x, y, z
-            "state.orientation": np.array([0.1, -0.05, 1.57], dtype=np.float32),  # roll, pitch, yaw
-            "state.velocity": np.array([2.0, 0.5, -0.1], dtype=np.float32),  # vx, vy, vz
-            "state.battery": np.array([85.5], dtype=np.float32),  # battery %
-            "state.gps": np.array([37.7749, -122.4194, 100.0], dtype=np.float32),  # lat, lon, alt
+            # UAV state (13D) - ensure all state arrays have batch dimension for transform compatibility
+            "state.position": np.array([[10.5, 5.2, 15.0]], dtype=np.float32),  # [1, 3] x, y, z
+            "state.orientation": np.array([[0.1, -0.05, 1.57]], dtype=np.float32),  # [1, 3] roll, pitch, yaw
+            "state.velocity": np.array([[2.0, 0.5, -0.1]], dtype=np.float32),  # [1, 3] vx, vy, vz
+            "state.battery": np.array([[85.5]], dtype=np.float32),  # [1, 1] battery %
+            "state.gps": np.array([[37.7749, -122.4194, 100.0]], dtype=np.float32),  # [1, 3] lat, lon, alt
             
-            # Task description
-            "annotation.human.task_description": "Land safely on the designated platform while avoiding obstacles",
+            # Task description - must be a list for transform compatibility
+            "annotation.human.task_description": ["Land safely on the designated platform while avoiding obstacles"],
         }
         
         self.last_observation = observation
@@ -66,10 +70,11 @@ class UAVControlInterface:
             bool: True if commands were executed successfully
         """
         try:
-            # Extract action components
-            flight_control = action["action.flight_control"]      # [throttle, roll, pitch, yaw]
-            velocity_command = action["action.velocity_command"]  # [vx, vy, vz]
-            gimbal_control = action["action.gimbal"]             # [gimbal_pitch, gimbal_yaw]
+            # Extract action components - actions have shape [action_horizon, action_dim]
+            # Take the first action in the sequence for immediate execution
+            flight_control = action["action.flight_control"][0]      # [throttle, roll, pitch, yaw]
+            velocity_command = action["action.velocity_command"][0]  # [vx, vy, vz]
+            gimbal_control = action["action.gimbal"][0]             # [gimbal_pitch, gimbal_yaw]
             
             print(f"Flight Control: throttle={flight_control[0]:.3f}, "
                   f"roll={flight_control[1]:.3f}, pitch={flight_control[2]:.3f}, yaw={flight_control[3]:.3f}")
@@ -185,9 +190,15 @@ def main():
     
     # Load trained UAV model
     print("Loading trained UAV model...")
+    
+    # Convert relative path to absolute path
+    import os
+    model_path = os.path.abspath(args.model_path)
+    print(f"Absolute model path: {model_path}")
+    
     try:
         uav_policy = Gr00tPolicy(
-            model_path=args.model_path,
+            model_path=model_path,
             modality_config=modality_configs,
             modality_transform=transforms,
             embodiment_tag=EmbodimentTag.UAV_QUADCOPTER,

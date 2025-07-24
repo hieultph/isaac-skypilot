@@ -49,5 +49,5 @@ EMBODIMENT_TAG_MAPPING = {
     EmbodimentTag.OXE_DROID.value: 17,
     EmbodimentTag.AGIBOT_GENIE1.value: 26,
     EmbodimentTag.GR1.value: 24,
-    EmbodimentTag.UAV_QUADCOPTER.value: 32,
+    EmbodimentTag.UAV_QUADCOPTER.value: 30,  # Changed from 32 to 30 to avoid index out of bounds
 }

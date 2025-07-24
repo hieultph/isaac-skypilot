@@ -2,12 +2,6 @@
 """
 UAV Quadcopter Fine-tuning Script
 
-This script demonstrates how to fine-tune the GR00T VLA model for UAV quadcopter control.
-The key approach is to leverage the pretrained VLM and only retrain the diffusion action head.
-
-Usage:
-    python scripts/uav_finetune.py --data_path /path/to/uav/dataset --output_dir /path/to/output
-
 State Space (13D):
     - position: x, y, z (3)
     - orientation: roll, pitch, yaw (3)  
@@ -272,6 +266,10 @@ def main():
         # Update the action head config
         new_action_head_config = model.action_head.config
         new_action_head_config.action_horizon = data_action_horizon
+        
+        # Note: action_dim should remain 32 (max_action_dim) as the pretrained model expects
+        # UAV actions (9D) are padded to 32D and masked during training
+        print(f"Action head action_dim remains: {new_action_head_config.action_dim} (UAV actions are padded)")
         
         # Import the FlowmatchingActionHead class
         from gr00t.model.action_head.flow_matching_action_head import FlowmatchingActionHead
