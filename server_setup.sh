@@ -39,7 +39,8 @@ EOF
 
 # 3. Create Conda env (persisted)
 if [ ! -d "/workspace/conda_envs/gr00t" ]; then
-    conda create -y -n gr00t python=3.10
+    conda create -p /workspace/conda_envs/gr00t python=3.10
+    conda config --append envs_dirs /workspace/conda_envs
 fi
 conda activate gr00t
 
