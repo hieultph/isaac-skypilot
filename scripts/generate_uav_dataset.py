@@ -17,7 +17,16 @@ import argparse
 import os
 import json
 import numpy as np
-import cv2
+try:
+    import cv2
+except ImportError:
+    print("Warning: OpenCV not available. Video generation will be skipped.")
+    cv2 = None
+try:
+    from scipy.ndimage import zoom
+except ImportError:
+    print("Warning: SciPy not available. Some image processing features will be limited.")
+    zoom = None
 from pathlib import Path
 from typing import List, Dict, Any
 import pandas as pd
@@ -147,16 +156,25 @@ class UAVLandingDataGenerator:
         target_screen_y = int(height - 50 - position[2] * 2)
         
         if 0 < target_screen_x < width and 0 < target_screen_y < height:
-            # Draw landing pad
-            cv2.circle(img, (target_screen_x, target_screen_y), 20, (255, 255, 255), -1)
-            cv2.circle(img, (target_screen_x, target_screen_y), 18, (255, 0, 0), 2)
-            cv2.circle(img, (target_screen_x, target_screen_y), 10, (255, 255, 255), 2)
+            # Draw landing pad (using numpy operations if cv2 not available)
+            if cv2 is not None:
+                cv2.circle(img, (target_screen_x, target_screen_y), 20, (255, 255, 255), -1)
+                cv2.circle(img, (target_screen_x, target_screen_y), 18, (255, 0, 0), 2)
+                cv2.circle(img, (target_screen_x, target_screen_y), 10, (255, 255, 255), 2)
+            else:
+                # Simple circular approximation using numpy
+                y, x = np.ogrid[:height, :width]
+                mask = (x - target_screen_x)**2 + (y - target_screen_y)**2 <= 20**2
+                img[mask] = [255, 255, 255]
         
         # Add horizon line based on pitch
         pitch = orientation[1]
         horizon_y = int(height//2 + pitch * 100)
         if 0 < horizon_y < height:
-            cv2.line(img, (0, horizon_y), (width, horizon_y), (255, 255, 255), 1)
+            if cv2 is not None:
+                cv2.line(img, (0, horizon_y), (width, horizon_y), (255, 255, 255), 1)
+            else:
+                img[horizon_y, :] = [255, 255, 255]
         
         # Add some noise and camera effects
         noise = np.random.normal(0, 5, img.shape).astype(np.int16)
@@ -166,7 +184,16 @@ class UAVLandingDataGenerator:
         if camera_type == "gimbal":
             # Gimbal camera is more zoomed in
             center_crop = img[height//4:3*height//4, width//4:3*width//4]
-            img = cv2.resize(center_crop, (width, height))
+            if cv2 is not None:
+                img = cv2.resize(center_crop, (width, height))
+            else:
+                # Simple resize using numpy indexing if scipy available
+                if zoom is not None:
+                    zoom_factors = (height/center_crop.shape[0], width/center_crop.shape[1], 1)
+                    img = zoom(center_crop, zoom_factors, order=1).astype(np.uint8)
+                else:
+                    # Fallback: just use center crop as-is
+                    img = center_crop
         
         return img
     
@@ -278,82 +305,104 @@ class UAVLandingDataGenerator:
             'gimbal_camera': gimbal_images,
         }
     
-    def save_episode(self, episode_data: Dict[str, Any]):
-        """Save episode data in LeRobot format."""
-        episode_idx = episode_data['episode_idx']
-        chunk_dir = self.output_dir / "data" / f"chunk-{episode_idx:03d}"
+    def save_episode(self, episode_data: Dict[str, Any], episodes_buffer: List[Dict[str, Any]], chunk_size: int = 1000):
+        """Save episode data to buffer and write chunks when ready."""
+        episodes_buffer.append(episode_data)
+        
+        # Check if we need to write a chunk
+        if len(episodes_buffer) >= chunk_size:
+            self.save_chunk(episodes_buffer, len(episodes_buffer) // chunk_size - 1)
+            episodes_buffer.clear()
+    
+    def save_chunk(self, episodes_buffer: List[Dict[str, Any]], chunk_idx: int):
+        """Save a chunk containing multiple episodes in LeRobot format."""
+        if not episodes_buffer:
+            return
+            
+        chunk_dir = self.output_dir / "data" / f"chunk-{chunk_idx:03d}"
         chunk_dir.mkdir(exist_ok=True)
         
-        # Create observation and action arrays with all required LeRobot fields
-        episode_length = episode_data['length']
+        print(f"Saving chunk {chunk_idx} with {len(episodes_buffer)} episodes...")
         
-        # Prepare all data arrays
-        observations = []
-        actions = []
-        timestamps = []
-        task_indices = []
-        episode_indices = []
-        indices = []
-        rewards = []
-        dones = []
-        task_descriptions = []
-        
-        # Choose a random task for this episode
-        episode_task_idx = episode_idx % len(self.scenarios)
-        
-        for i in range(episode_length):
-            # Observation state (13D: position(3) + orientation(3) + velocity(3) + battery(1) + gps(3))
-            obs_state = np.concatenate([
-                episode_data['positions'][i],      # 3D
-                episode_data['orientations'][i],   # 3D  
-                episode_data['velocities'][i],     # 3D
-                [episode_data['battery'][i]],      # 1D
-                episode_data['gps'][i],           # 3D
-            ])
-            observations.append(obs_state)
+        # Process each episode in the chunk
+        for episode_data in episodes_buffer:
+            episode_idx = episode_data['episode_idx']
+            episode_length = episode_data['length']
             
-            # Action (9D: flight_control(4) + velocity_command(3) + gimbal(2))
-            action = np.concatenate([
-                episode_data['flight_control'][i],    # 4D
-                episode_data['velocity_command'][i],  # 3D
-                episode_data['gimbal'][i],            # 2D
-            ])
-            actions.append(action)
+            # Prepare all data arrays for this episode
+            observations = []
+            actions = []
+            timestamps = []
+            task_indices = []
+            episode_indices = []
+            indices = []
+            rewards = []
+            dones = []
+            task_descriptions = []
             
-            # Standard LeRobot metadata fields
-            timestamps.append(i / self.fps)  # Time in seconds
-            task_indices.append(episode_task_idx)  # Task index for this episode
-            task_descriptions.append(episode_task_idx)  # Task description index
-            episode_indices.append(episode_idx)
-            indices.append(i)
+            # Choose a random task for this episode
+            episode_task_idx = episode_idx % len(self.scenarios)
             
-            # Reward: higher for successful landing (lower altitude + stable)
-            altitude = episode_data['positions'][i][2]
-            velocity_magnitude = np.linalg.norm(episode_data['velocities'][i])
-            reward = max(0, (100 - altitude) / 100.0 - velocity_magnitude * 0.1)
-            rewards.append(reward)
+            for i in range(episode_length):
+                # Observation state (13D: position(3) + orientation(3) + velocity(3) + battery(1) + gps(3))
+                obs_state = np.concatenate([
+                    episode_data['positions'][i],      # 3D
+                    episode_data['orientations'][i],   # 3D  
+                    episode_data['velocities'][i],     # 3D
+                    [episode_data['battery'][i]],      # 1D
+                    episode_data['gps'][i],           # 3D
+                ])
+                observations.append(obs_state)
+                
+                # Action (9D: flight_control(4) + velocity_command(3) + gimbal(2))
+                action = np.concatenate([
+                    episode_data['flight_control'][i],    # 4D
+                    episode_data['velocity_command'][i],  # 3D
+                    episode_data['gimbal'][i],            # 2D
+                ])
+                actions.append(action)
+                
+                # Standard LeRobot metadata fields
+                timestamps.append(i / self.fps)  # Time in seconds
+                task_indices.append(episode_task_idx)  # Task index for this episode
+                task_descriptions.append(episode_task_idx)  # Task description index
+                episode_indices.append(episode_idx)
+                indices.append(i)
+                
+                # Reward: higher for successful landing (lower altitude + stable)
+                altitude = episode_data['positions'][i][2]
+                velocity_magnitude = np.linalg.norm(episode_data['velocities'][i])
+                reward = max(0, (100 - altitude) / 100.0 - velocity_magnitude * 0.1)
+                rewards.append(reward)
+                
+                # Done: True only on last frame
+                dones.append(i == episode_length - 1)
             
-            # Done: True only on last frame
-            dones.append(i == episode_length - 1)
-        
-        # Create comprehensive episode dataframe
-        episode_df = pd.DataFrame({
-            'observation.state': [obs.tolist() for obs in observations],
-            'action': [act.tolist() for act in actions], 
-            'timestamp': timestamps,
-            'task_index': task_indices,
-            'annotation.human.task_description': task_descriptions,
-            'episode_index': episode_indices,
-            'index': indices,
-            'next.reward': rewards,
-            'next.done': dones
-        })
-        
-        # Save complete episode data
-        episode_df.to_parquet(chunk_dir / f"episode_{episode_idx:06d}.parquet")
-        
-        # Save videos
-        video_dir = self.output_dir / "videos" / f"chunk-{episode_idx:03d}"
+            # Create comprehensive episode dataframe
+            episode_df = pd.DataFrame({
+                'observation.state': [obs.tolist() for obs in observations],
+                'action': [act.tolist() for act in actions], 
+                'timestamp': timestamps,
+                'task_index': task_indices,
+                'annotation.human.task_description': task_descriptions,
+                'episode_index': episode_indices,
+                'index': indices,
+                'next.reward': rewards,
+                'next.done': dones
+            })
+            
+            # Save episode data within the chunk
+            episode_df.to_parquet(chunk_dir / f"episode_{episode_idx:06d}.parquet")
+            
+            # Save videos for this episode
+            self.save_episode_videos(episode_data, chunk_idx)
+            
+        print(f"✓ Chunk {chunk_idx} saved with {len(episodes_buffer)} episodes")
+    
+    def save_episode_videos(self, episode_data: Dict[str, Any], chunk_idx: int):
+        """Save video data for a single episode within a chunk."""
+        episode_idx = episode_data['episode_idx']
+        video_dir = self.output_dir / "videos" / f"chunk-{chunk_idx:03d}"
         
         # Front camera
         front_video_dir = video_dir / "observation.images.front_camera"
@@ -366,29 +415,44 @@ class UAVLandingDataGenerator:
         gimbal_video_dir.mkdir(parents=True, exist_ok=True)
         gimbal_video_path = gimbal_video_dir / f"episode_{episode_idx:06d}.mp4"
         self.save_video(episode_data['gimbal_camera'], gimbal_video_path)
-        
-        print(f"✓ Episode {episode_idx} saved")
     
     def save_video(self, frames: List[np.ndarray], output_path: Path):
         """Save video frames as MP4."""
+        if cv2 is None:
+            print(f"Warning: OpenCV not available. Skipping video generation for {output_path}")
+            return
+            
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        # Try different fourcc options for compatibility
+        try:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        except AttributeError:
+            try:
+                fourcc = cv2.cv.CV_FOURCC(*'mp4v')  # Older OpenCV versions
+            except:
+                fourcc = 0x00000021  # Fallback fourcc code
+        
         height, width = frames[0].shape[:2]
         out = cv2.VideoWriter(str(output_path), fourcc, self.fps, (width, height))
         
         for frame in frames:
             # Convert RGB to BGR for OpenCV
-            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            try:
+                frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            except AttributeError:
+                # Fallback: manually convert RGB to BGR
+                frame_bgr = frame[:, :, ::-1].copy()
             out.write(frame_bgr)
         
         out.release()
     
-    def create_metadata_files(self, num_episodes: int):
+    def create_metadata_files(self, num_episodes: int, chunk_size: int = 1000):
         """Create LeRobot metadata files."""
         
-        # Calculate total frames
+        # Calculate total frames and chunks
         total_frames = num_episodes * self.episode_length
+        total_chunks = (num_episodes + chunk_size - 1) // chunk_size  # Ceiling division
         
         # info.json with complete features schema
         info = {
@@ -398,8 +462,8 @@ class UAVLandingDataGenerator:
             "total_frames": total_frames,
             "total_tasks": len(self.scenarios),
             "total_videos": 2,  # front_camera and gimbal_camera
-            "total_chunks": 0,
-            "chunks_size": 1000,
+            "total_chunks": total_chunks,
+            "chunks_size": chunk_size,
             "fps": float(self.fps),
             "splits": {
                 "train": "0:100"
@@ -606,21 +670,36 @@ class UAVLandingDataGenerator:
         
         print("✓ Metadata files created")
     
-    def generate_dataset(self, num_episodes: int = 50):
+    def generate_dataset(self, num_episodes: int = 50, chunk_size: int = 1000):
         """Generate complete UAV landing dataset."""
         print(f"Generating UAV Landing Dataset with {num_episodes} episodes...")
         print(f"Output directory: {self.output_dir}")
+        print(f"Episodes per chunk: {chunk_size}")
+        
+        # Buffer to collect episodes before writing chunks
+        episodes_buffer = []
         
         # Generate episodes
         for i in range(num_episodes):
             episode_data = self.generate_episode(i)
-            self.save_episode(episode_data)
+            episodes_buffer.append(episode_data)
+            
+            # Save chunk when buffer is full
+            if len(episodes_buffer) >= chunk_size:
+                chunk_idx = i // chunk_size
+                self.save_chunk(episodes_buffer, chunk_idx)
+                episodes_buffer.clear()
+        
+        # Save remaining episodes in final chunk
+        if episodes_buffer:
+            final_chunk_idx = num_episodes // chunk_size
+            self.save_chunk(episodes_buffer, final_chunk_idx)
         
         # Create metadata
-        self.create_metadata_files(num_episodes)
+        self.create_metadata_files(num_episodes, chunk_size)
         
         print(f"\n✓ Dataset generation completed!")
-        print(f"Generated {num_episodes} episodes in LeRobot format")
+        print(f"Generated {num_episodes} episodes in {(num_episodes + chunk_size - 1) // chunk_size} chunks")
         print(f"Dataset ready for UAV training at: {self.output_dir}")
 
 
@@ -637,6 +716,12 @@ def main():
         type=int, 
         default=1,
         help="Number of episodes to generate"
+    )
+    parser.add_argument(
+        "--chunk_size", 
+        type=int, 
+        default=1000,
+        help="Number of episodes per chunk (default: 1000)"
     )
     parser.add_argument(
         "--episode_length", 
@@ -664,11 +749,12 @@ def main():
     generator.episode_length = args.episode_length
     
     # Generate dataset
-    generator.generate_dataset(num_episodes=args.num_episodes)
+    generator.generate_dataset(num_episodes=args.num_episodes, chunk_size=args.chunk_size)
     
     print(f"\nTo use this dataset:")
-    print(f"  python scripts/load_dataset.py --data_path {args.output_dir} --embodiment_tag uav_quadcopter")
-    print(f"  python scripts/uav_finetune.py --data_path {args.output_dir}")
+    print(f"  python scripts/uav_finetune.py --config configs/uav_finetune_config.yaml --data_path {args.output_dir}")
+    print(f"  # Or with override:")
+    print(f"  python scripts/uav_finetune.py --config configs/uav_finetune_config.yaml --override data.data_path={args.output_dir}")
 
 
 if __name__ == "__main__":
