@@ -17,19 +17,9 @@ from enum import Enum
 
 
 class EmbodimentTag(Enum):
-    GR1 = "gr1"
+    UAV_QUADCOPTER = "uav_quadcopter"
     """
-    The GR1 dataset.
-    """
-
-    OXE_DROID = "oxe_droid"
-    """
-    The OxE Droid dataset.
-    """
-
-    AGIBOT_GENIE1 = "agibot_genie1"
-    """
-    The AgiBot Genie-1 with gripper dataset.
+    UAV quadcopter embodiment for aerial robotics.
     """
 
     NEW_EMBODIMENT = "new_embodiment"
@@ -37,17 +27,8 @@ class EmbodimentTag(Enum):
     Any new embodiment for finetuning.
     """
 
-    UAV_QUADCOPTER = "uav_quadcopter"
-    """
-    UAV quadcopter embodiment for aerial robotics.
-    """
-
-
 # Embodiment tag string: to projector index in the Action Expert Module
 EMBODIMENT_TAG_MAPPING = {
-    EmbodimentTag.NEW_EMBODIMENT.value: 31,
-    EmbodimentTag.OXE_DROID.value: 17,
-    EmbodimentTag.AGIBOT_GENIE1.value: 26,
-    EmbodimentTag.GR1.value: 24,
     EmbodimentTag.UAV_QUADCOPTER.value: 30,  # Changed from 32 to 30 to avoid index out of bounds
+    EmbodimentTag.NEW_EMBODIMENT.value: 31,
 }
