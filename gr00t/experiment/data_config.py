@@ -52,17 +52,16 @@ class UAVQuadcopterDataConfig(BaseDataConfig):
     
     State Space:
     - position: x, y, z (3 dims)
-    - orientation: roll, pitch, yaw (3 dims)  
+    - orientation: throttle, roll, pitch, yaw (4 dims)  
     - velocity: vx, vy, vz (3 dims)
-    - battery: battery level (1 dim)
-    - gps: lat, lon, alt (3 dims)
+    - gimbal: roll, pitch, yaw (3)  
     Total: 13 dimensional state
     
     Action Space:
     - flight_control: throttle, roll, pitch, yaw (4 dims)
     - velocity_command: vx, vy, vz (3 dims) 
-    - gimbal: gimbal_pitch, gimbal_yaw (2 dims)
-    Total: 9 dimensional action
+    - gimbal: roll, pitch, yaw (3)  
+    Total: 10 dimensional action
     """
     video_keys = [
         "video.front_camera",
@@ -70,19 +69,18 @@ class UAVQuadcopterDataConfig(BaseDataConfig):
     ]
     state_keys = [
         "state.position",        # x, y, z (3)
-        "state.orientation",     # roll, pitch, yaw (3)
+        "state.orientation",     # throttle, roll, pitch, yaw (4)
         "state.velocity",        # vx, vy, vz (3)
-        "state.battery",         # battery level (1)
-        "state.gps",            # lat, lon, alt (3)
+        "state.gimbal",         # roll, pitch, yaw (3)
     ]
     action_keys = [
         "action.flight_control",  # throttle, roll, pitch, yaw (4)
         "action.velocity_command", # vx, vy, vz (3)
-        "action.gimbal",         # gimbal_pitch, gimbal_yaw (2)
+        "action.gimbal",         # roll, pitch, yaw (3)
     ]
     language_keys = ["annotation.human.task_description"]
     observation_indices = [0]
-    action_indices = list(range(9))  # UAV has 9-dimensional action space
+    action_indices = list(range(10))  # UAV has 10-dimensional action space
 
     def modality_config(self) -> dict[str, ModalityConfig]:
         video_modality = ModalityConfig(

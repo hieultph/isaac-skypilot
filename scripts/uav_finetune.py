@@ -4,15 +4,14 @@ UAV Quadcopter Fine-tuning Script
 
 State Space (13D):
     - position: x, y, z (3)
-    - orientation: roll, pitch, yaw (3)  
+    - orientation: throttle, roll, pitch, yaw (4)  
     - velocity: vx, vy, vz (3)
-    - battery: battery level (1)
-    - gps: lat, lon, alt (3)
+    - gimbal: roll, pitch, yaw (3)
 
 Action Space (9D):
     - flight_control: throttle, roll, pitch, yaw (4)
     - velocity_command: vx, vy, vz (3)
-    - gimbal: gimbal_pitch, gimbal_yaw (2)
+    - gimbal: roll, pitch, yaw (3)
 """
 
 import argparse
