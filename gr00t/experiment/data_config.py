@@ -65,7 +65,6 @@ class UAVQuadcopterDataConfig(BaseDataConfig):
     """
     video_keys = [
         "video.front_camera",
-        "video.gimbal_camera",
     ]
     state_keys = [
         "state.position",        # x, y, z (3)
@@ -152,8 +151,7 @@ class UAVQuadcopterDataConfig(BaseDataConfig):
                     "state.position": "min_max",       # position normalization
                     "state.orientation": "min_max",    # orientation normalization  
                     "state.velocity": "min_max",       # velocity normalization
-                    "state.battery": "min_max",        # battery normalization
-                    "state.gps": "min_max",           # GPS normalization
+                    "state.gimbal": "min_max",        # gimbal normalization
                 },
                 target_rotations={
                     "state.orientation": "euler_angles_rpy",  # Use euler angles for orientation
