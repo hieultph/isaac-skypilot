@@ -321,7 +321,7 @@ class LeRobotSingleDataset(Dataset):
                 channels = le_video_meta["info"]["video.channels"]
                 fps = le_video_meta["info"]["video.fps"]
             simplified_modality_meta["video"][new_key] = {
-                "resolution": [width, height],
+                "resolution": [height, width],
                 "channels": channels,
                 "fps": fps,
             }
